@@ -71,8 +71,8 @@ const TELEGRAM_PROFILE_URL =
 ========================================================= */
 
 const LOGIN_CREDENTIALS = {
-  id: "creator001",
-  password: "Demo@12345",
+  id: "0987654321",
+  password: "zoey.priv20",
 };
 
 /* =========================================================
@@ -331,7 +331,7 @@ function LoginPage(): ReactNode {
               </h2>
 
               <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-white/40">
-                Sign in to continue to your private creator
+                Sign in to continue to your VIP
                 experience.
               </p>
             </div>
