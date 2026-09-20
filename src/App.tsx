@@ -1,13 +1,15 @@
-import { useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import { useRef, useState } from "react";
+import type { ClipboardEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import {
   ArrowRight,
   Bitcoin,
+  CalendarDays,
   Check,
   Eye,
   EyeOff,
   FolderLock,
   Gift,
+  KeyRound,
   Lock,
   Play,
   ShieldCheck,
@@ -445,7 +447,105 @@ function LoginPage(): ReactNode {
 ========================================================= */
 
 function UnlockPage(): ReactNode {
-  // const navigate = useNavigate();
+  const [unlockStep, setUnlockStep] = useState<"dob" | "code">("dob");
+  const [dateOfBirth, setDateOfBirth] = useState<string>("");
+  const [dobError, setDobError] = useState<string>("");
+  const [accessCode, setAccessCode] = useState<string[]>(["", "", "", ""]);
+  const [codeError, setCodeError] = useState<string>("");
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const calculateAge = (birthDate: string): number => {
+    const today = new Date();
+    const birth = new Date(`${birthDate}T00:00:00`);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDifference = today.getMonth() - birth.getMonth();
+
+    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birth.getDate())) {
+      age -= 1;
+    }
+
+    return age;
+  };
+
+  const handleDobContinue = (): void => {
+    if (!dateOfBirth) {
+      setDobError("Please enter your date of birth.");
+      return;
+    }
+
+    const birthDate = new Date(`${dateOfBirth}T00:00:00`);
+    if (Number.isNaN(birthDate.getTime())) {
+      setDobError("Please enter a valid date of birth.");
+      return;
+    }
+
+    if (birthDate > new Date()) {
+      setDobError("Date of birth cannot be in the future.");
+      return;
+    }
+
+    if (calculateAge(dateOfBirth) < 18) {
+      setDobError("You must be 18 or older to continue.");
+      return;
+    }
+
+    setDobError("");
+    setUnlockStep("code");
+    window.setTimeout(() => codeInputRefs.current[0]?.focus(), 50);
+  };
+
+  const handleCodeChange = (index: number, value: string): void => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const nextCode = [...accessCode];
+    nextCode[index] = digit;
+    setAccessCode(nextCode);
+    setCodeError("");
+
+    if (digit && index < 3) {
+      codeInputRefs.current[index + 1]?.focus();
+    }
+
+    if (nextCode.every(Boolean)) {
+      const enteredCode = nextCode.join("");
+      if (enteredCode === "2505") {
+        setIsVerified(true);
+        setCodeError("");
+      } else {
+        setCodeError("Incorrect access code. Please try again.");
+      }
+    }
+  };
+
+  const handleCodeKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === "Backspace" && !accessCode[index] && index > 0) {
+      codeInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleCodePaste = (event: ClipboardEvent<HTMLInputElement>): void => {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+    if (!pasted) return;
+
+    const nextCode = ["", "", "", ""];
+    pasted.split("").forEach((digit, index) => {
+      nextCode[index] = digit;
+    });
+    setAccessCode(nextCode);
+    setCodeError("");
+
+    if (pasted.length === 4) {
+      if (pasted === "2505") {
+        setIsVerified(true);
+      } else {
+        setCodeError("Incorrect access code. Please try again.");
+        codeInputRefs.current[0]?.focus();
+      }
+    } else {
+      codeInputRefs.current[pasted.length]?.focus();
+    }
+  };
 
   const [selectedCard, setSelectedCard] =
     useState<PreviewCardProps | null>(null);
@@ -528,6 +628,75 @@ function UnlockPage(): ReactNode {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050505] text-white">
       <Background />
+      {!isVerified ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-xl sm:p-6">
+          <div className="relative w-full max-w-lg overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0b0b] shadow-[0_40px_140px_rgba(0,0,0,0.7)]">
+            <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-fuchsia-500/10 blur-[90px]" />
+            <div className="pointer-events-none absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-violet-500/8 blur-[80px]" />
+
+            <div className="relative p-6 sm:p-8">
+              {unlockStep === "dob" ? (
+                <>
+                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5.5">
+                    <span className="text-2xl" aria-hidden="true">🔞</span>
+                  </div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/35">Age verification</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.045em] text-white sm:text-3xl">Unlock link with your date of birth</h2>
+                  <p className="mt-4 text-sm leading-6 text-white/45">18+ access required this section contains age-restricted content intended exclusively for adults aged18 and over. A secure password is required to verify authorized access and help protect the privacy of the content and its members, Please keep your password private and do not share with anyone.</p>
+
+                  <div className="mt-7">
+                    <label htmlFor="date-of-birth" className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+                      <CalendarDays className="h-3.5 w-3.5" /> Date of birth
+                    </label>
+                    <input
+                      id="date-of-birth"
+                      type="date"
+                      max={new Date().toISOString().split("T")[0]}
+                      value={dateOfBirth}
+                      onChange={(event) => { setDateOfBirth(event.target.value); setDobError(""); }}
+                      className="h-14 w-full rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none transition-all scheme-dark focus:border-white/25 focus:bg-white/4.5"
+                    />
+                    {dobError ? <p className="mt-3 rounded-xl border border-red-400/10 bg-red-400/5 px-3.5 py-3 text-xs leading-5 text-red-200/75">{dobError}</p> : null}
+                  </div>
+
+                  <button type="button" onClick={handleDobContinue} disabled={!dateOfBirth} className="group mt-6 flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-white px-5 text-sm font-semibold text-black transition-all duration-300 hover:bg-white/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/25">
+                    Continue <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5.5"><KeyRound className="h-6 w-6 text-white/80" strokeWidth={1.7} /></div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/35">Access verification</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.045em] text-white sm:text-3xl">Unlock link with a code</h2>
+                  <p className="mt-4 text-sm leading-6 text-white/45">Kindly provide access code</p>
+
+                  <div className="mt-7 flex justify-center gap-2.5 sm:gap-3">
+                    {accessCode.map((digit, index) => (
+                      <input
+                        key={index}
+                        ref={(element) => { codeInputRefs.current[index] = element; }}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete={index === 0 ? "one-time-code" : "off"}
+                        maxLength={1}
+                        value={digit}
+                        onChange={(event) => handleCodeChange(index, event.target.value)}
+                        onKeyDown={(event) => handleCodeKeyDown(index, event)}
+                        onPaste={handleCodePaste}
+                        aria-label={`Access code digit ${index + 1}`}
+                        className="h-16 w-14 rounded-2xl border border-white/10 bg-black/25 text-center text-2xl font-semibold text-white outline-none transition-all focus:border-white/30 focus:bg-white/4.5 focus:ring-4 focus:ring-white/[0.035] sm:h-17 sm:w-15.5"
+                      />
+                    ))}
+                  </div>
+                  {codeError ? <p className="mt-4 rounded-xl border border-red-400/10 bg-red-400/5 px-3.5 py-3 text-center text-xs leading-5 text-red-200/75">{codeError}</p> : null}
+                  <div className="mt-7 flex items-center justify-center gap-2 text-[10px] font-medium uppercase tracking-[0.17em] text-white/25"><Lock className="h-3.5 w-3.5" /> Protected access</div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
 
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
         <SiteHeader />
